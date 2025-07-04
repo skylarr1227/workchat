@@ -1,0 +1,79 @@
+/* User Status Plugin Styles */
+.status-selector {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.current-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #40444b;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.current-status:hover {
+  background: #50575e;
+  border-color: #7289da;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #43b581;
+}
+
+.status-online .status-dot { background: #43b581; }
+.status-away .status-dot { background: #faa61a; }
+.status-busy .status-dot { background: #f04747; }
+.status-invisible .status-dot { background: #747f8d; }
+
+.dropdown-arrow {
+  margin-left: auto;
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.status-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #36393f;
+  border: 1px solid #202225;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 100;
+}
+
+.status-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.status-option:hover {
+  background: #40444b;
+}
+
+.user-status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 6px;
+}
+
+.user-status-indicator.status-online { background: #43b581; }
+.user-status-indicator.status-away { background: #faa61a; }
+.user-status-indicator.status-busy { background: #f04747; }
+.user-status-indicator.status-invisible { background: #747f8d; }

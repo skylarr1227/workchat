@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Workplace Chat with PocketAnimals</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" rel="stylesheet" />
+</head>
+<body>
+  <div class="container" id="appContainer">
+    <!-- LOGIN SCREEN -->
+    <div id="login">
+      <h2>🎮 Chat + PocketAnimals</h2>
+      <input id="displayName" type="text" placeholder="Display Name" maxlength="30" autocomplete="username" />
+      <input id="displayColor" type="color" value="#ffffff" title="Name Color" />
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+      <button id="enterBtn">Enter Chat</button>
+      <div style="font-size: 0.8rem; color: #aaa; text-align: center; margin-top: 8px;">
+        Join the 'pocketanimals' room to play!
+      </div>
+    </div>
+
+    <!-- CHAT SCREEN -->
+    <div id="chat">
+      <!-- ADMIN CONTROLS -->
+      <div id="adminControls">
+        <div class="admin-row">
+          <input id="newRoomName" type="text" placeholder="New room name" maxlength="50" />
+          <button id="createRoomBtn">Create Room</button>
+          <button id="fileManagerBtn">📁 File Manager</button>
+        </div>
+        <div class="admin-row">
+          <select id="roomDeleteSelect">
+            <option value="">Select room to delete</option>
+          </select>
+          <button id="deleteRoomBtn" class="danger">Delete Room</button>
+          <button id="roomStatsBtn">Room Stats</button>
+        </div>
+      </div>
+
+      <!-- Game Panel (only visible in PocketAnimals room) -->
+      <div id="gamePanel">
+        <h3>🎮 PocketAnimals</h3>
+        <div class="game-stats" id="gameStats">
+          <div class="stat-card">
+            <div class="stat-icon">💰</div>
+            <div class="stat-value" id="cowoncyDisplay">100</div>
+            <div class="stat-label">Cowoncy</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⭐</div>
+            <div class="stat-value" id="levelDisplay">1</div>
+            <div class="stat-label">Level</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🐾</div>
+            <div class="stat-value" id="animalsDisplay">0</div>
+            <div class="stat-label">Animals</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📦</div>
+            <div class="stat-value" id="lootboxDisplay">0</div>
+            <div class="stat-label">Crates</div>
+          </div>
+        </div>
+        <div class="game-actions">
+          <button class="game-btn primary" id="huntBtn">🎯 Hunt (5💰)</button>
+          <button class="game-btn" id="zooBtn">🏛️ Zoo</button>
+          <button class="game-btn" id="teamBtn">⚔️ Team</button>
+          <button class="game-btn" id="battleBtn">🥊 Battle</button>
+          <button class="game-btn" id="leaderboardBtn">🏆 Leaderboard</button>
+        </div>
+        <div id="huntAnimation" class="hunt-animation" style="display: none;">
+          <div class="hunt-progress" id="huntProgress"></div>
+          <div class="hunt-text" id="huntText">🔍 Searching for animals...</div>
+        </div>
+      </div>
+
+      <!-- Game Quick Actions -->
+      <div class="game-quick-actions" id="gameQuickActions">
+        <button class="quick-action-btn" onclick="sendGameCommand('/help')">❓ Help</button>
+        <button class="quick-action-btn" onclick="sendGameCommand('/hunt')">🎯 Hunt</button>
+        <button class="quick-action-btn" onclick="sendGameCommand('/zoo')">🏛️ Zoo</button>
+        <button class="quick-action-btn" onclick="sendGameCommand('/stats')">📊 Stats</button>
+        <button class="quick-action-btn" onclick="sendGameCommand('/leaderboard')">🏆 Top</button>
+        <button class="quick-action-btn" onclick="sendGameCommand('/heal')">💖 Heal</button>
+      </div>
+
+      <!-- Plugin Container for dynamic UI elements -->
+      <div id="plugin-container"></div>
+
+      <!-- Room tabs -->
+      <div id="roomTabs"></div>
+
+      <!-- User count -->
+      <button id="userCountBtn">
+        <span class="online-indicator"></span>
+        <span>Users: 0</span>
+      </button>
+
+      <!-- Message area -->
+      <div id="messages"></div>
+      <button id="scrollToBottom" title="Scroll to bottom">↓ New Messages</button>
+      <div id="typingIndicator"></div>
+
+      <!-- Input bar -->
+      <div id="inputBar">
+        <textarea id="msgInput" placeholder="Type your message... (Markdown supported)" rows="1" maxlength="2000"></textarea>
+        <input type="file" id="fileInput" accept="*/*" style="display: none;" />
+        <div class="input-actions">
+          <button id="fileBtn" title="Attach file">📎</button>
+          <button id="markdownBtn" title="Markdown help">MD</button>
+          <button id="emojiBtn" title="Add emoji">😊</button>
+          <button id="gameBtn" title="Game commands">🎮</button>
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+
+      <!-- Emoji Picker -->
+      <div id="emojiPicker" style="display: none; position: absolute; bottom: 60px; right: 16px; background: #36393f; border: 1px solid #555; border-radius: 8px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 300px; z-index: 100;">
+        <div class="emoji-grid" style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;">
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">😊</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">😂</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">❤️</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">👍</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">👏</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">🔥</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">🎉</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">💯</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">😎</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">🤔</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">😅</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">🙌</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">✨</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">💪</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">🚀</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">👀</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">🤝</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">💡</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">📌</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">✅</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">❌</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">⚡</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">🎯</span>
+          <span class="emoji" style="padding: 8px; cursor: pointer; border-radius: 4px; text-align: center; font-size: 1.2rem;">💎</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User List Modal -->
+  <div id="userListModal" class="modal">
+    <div class="modal-content">
+      <button class="close-btn">&times;</button>
+      <h3>Users in Room</h3>
+      <div id="userListContent"></div>
+    </div>
+  </div>
+
+  <!-- File Manager Modal -->
+  <div id="fileManagerModal" class="modal">
+    <div class="modal-content">
+      <button class="close-btn">&times;</button>
+      <h3>File Manager</h3>
+      <div id="fileListContent" class="file-list"></div>
+    </div>
+  </div>
+
+  <!-- Markdown Help Modal -->
+  <div id="markdownHelp" class="modal">
+    <div class="modal-content">
+      <button class="close-btn">&times;</button>
+      <h3>Markdown Formatting Guide</h3>
+      <div style="color: #ddd;">
+        <h4>Text Formatting</h4>
+        <p><code>**bold**</code> → <strong>bold</strong></p>
+        <p><code>*italic*</code> → <em>italic</em></p>
+        <p><code>`code`</code> → <code>code</code></p>
+
+        <h4>Headers</h4>
+        <p><code># Header 1</code></p>
+        <p><code>## Header 2</code></p>
+
+        <h4>Lists</h4>
+        <p><code>- Item 1</code></p>
+        <p><code>- Item 2</code></p>
+
+        <h4>Links</h4>
+        <p><code>[Link text](https://example.com)</code></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div id="contextMenu">
+    <div class="reaction-grid">
+      <div class="reaction-item" data-reaction="thumbsup">👍</div>
+      <div class="reaction-item" data-reaction="heart">❤️</div>
+      <div class="reaction-item" data-reaction="laugh">😂</div>
+      <div class="reaction-item" data-reaction="fire">🔥</div>
+      <div class="reaction-item" data-reaction="clap">👏</div>
+      <div class="reaction-item" data-reaction="sad">😢</div>
+      <div class="reaction-item" data-reaction="angry">😠</div>
+      <div class="reaction-item" data-reaction="surprised">😮</div>
+    </div>
+    <div class="menu-divider"></div>
+    <div class="menu-item" id="editMenuItem">
+      <span>Edit Message</span>
+    </div>
+    <div class="menu-item" id="deleteMenuItem">
+      <span>Delete Message</span>
+    </div>
+  </div>
+
+  <!-- Image Lightbox -->
+  <div id="imageLightbox" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 2000; cursor: zoom-out;">
+    <button style="position: absolute; top: 20px; right: 30px; background: rgba(0,0,0,0.5); border: none; color: #fff; font-size: 30px; cursor: pointer; width: 40px; height: 40px; border-radius: 50%;">&times;</button>
+    <img src="" alt="" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); max-width: 90%; max-height: 90%; border-radius: 8px;" />
+  </div>
+
+  <!-- Notifications container -->
+  <div id="notifications"></div>
+
+  <!-- External Scripts -->
+  <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+  <script src="/js/plugin-loader.js" type="module"></script>
+  <script src="app.js"></script>
+</body>
+</html>

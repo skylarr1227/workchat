@@ -1,0 +1,8 @@
+{
+  "id": "user-status",
+  "name": "User Status Plugin",
+  "version": "1.0.0",
+  "description": "Shows user online/away/busy status",
+  "author": "Assistant",
+  "clientScript": true
+}
