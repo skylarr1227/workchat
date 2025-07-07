@@ -288,6 +288,15 @@ const getSellValue = (rarity) => {
 };
 
 // Database helper functions
+function runDb(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password + 'pocketanimals_salt').digest('hex');
 }
@@ -422,23 +431,28 @@ function getUserTeam(userId) {
 }
 
 function updateTeam(userId, animalIds) {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      // Clear existing team
-      db.run('UPDATE animals SET is_in_team = 0, team_position = NULL WHERE user_id = ?', [userId]);
+  return new Promise(async (resolve, reject) => {
+    try {
+      await runDb('BEGIN TRANSACTION');
+      await runDb('UPDATE animals SET is_in_team = 0, team_position = NULL WHERE user_id = ?', [userId]);
 
-      // Set new team
-      animalIds.forEach((animalId, index) => {
+      const tasks = animalIds.map((animalId, index) => {
         if (animalId) {
-          db.run(
+          return runDb(
             'UPDATE animals SET is_in_team = 1, team_position = ? WHERE id = ? AND user_id = ?',
             [index, animalId, userId]
           );
         }
+        return Promise.resolve();
       });
 
+      await Promise.all(tasks);
+      await runDb('COMMIT');
       resolve();
-    });
+    } catch (err) {
+      try { await runDb('ROLLBACK'); } catch (_) {}
+      reject(err);
+    }
   });
 }
 
