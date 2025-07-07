@@ -693,12 +693,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!text) return;
 
     // Execute plugin hook
+    let finalText = text;
     if (window.pluginSystem) {
       const hookResults = await window.pluginSystem.executeHook('before-send', { text, room: currentRoom });
       if (hookResults.some(r => r?.cancel)) return;
-      
+
       const modifiedText = hookResults.reduce((t, r) => r?.text || t, text);
       msgInput.value = modifiedText;
+      finalText = modifiedText.trim();
+    }
+
+    if (finalText.startsWith('/sell')) {
+      const parts = finalText.split(' ').slice(1);
+      let qty = 1;
+      if (parts.length > 1 && /^\d+$/.test(parts[parts.length - 1])) {
+        qty = parseInt(parts.pop(), 10);
+      }
+      const name = parts.join(' ').trim();
+      if (!name) {
+        showNotification('Invalid animal name', 'error');
+        return;
+      }
+      if (!Number.isInteger(qty) || qty <= 0) {
+        showNotification('Quantity must be a positive integer', 'error');
+        return;
+      }
     }
 
     originalSendMessage();
@@ -924,12 +943,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!text) return;
 
     // Execute plugin hook
+    let finalText = text;
     if (window.pluginSystem) {
       const hookResults = await window.pluginSystem.executeHook('before-send', { text, room: currentRoom });
       if (hookResults.some(r => r?.cancel)) return;
-      
+
       const modifiedText = hookResults.reduce((t, r) => r?.text || t, text);
       msgInput.value = modifiedText;
+      finalText = modifiedText.trim();
+    }
+
+    if (finalText.startsWith('/sell')) {
+      const parts = finalText.split(' ').slice(1);
+      let qty = 1;
+      if (parts.length > 1 && /^\d+$/.test(parts[parts.length - 1])) {
+        qty = parseInt(parts.pop(), 10);
+      }
+      const name = parts.join(' ').trim();
+      if (!name) {
+        showNotification('Invalid animal name', 'error');
+        return;
+      }
+      if (!Number.isInteger(qty) || qty <= 0) {
+        showNotification('Quantity must be a positive integer', 'error');
+        return;
+      }
     }
 
     originalSendMessage();
