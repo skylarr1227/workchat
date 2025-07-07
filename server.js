@@ -964,7 +964,20 @@ io.on('connection', async (socket) => {
     }
 
     try {
-      const { animalName, quantity = 1 } = data;
+      let { animalName, quantity = 1 } = data;
+
+      if (typeof animalName !== 'string' || animalName.trim() === '') {
+        socket.emit('game error', 'Invalid animal name');
+        return;
+      }
+
+      quantity = parseInt(quantity, 10);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        socket.emit('game error', 'Quantity must be a positive integer');
+        return;
+      }
+
+      animalName = animalName.trim();
       const animals = await getUserAnimals(session.userId);
       const animalsToSell = animals.filter(a => a.name === animalName);
 
@@ -1358,11 +1371,24 @@ Active Sessions: ${activeGameSessions.size}
               return;
             }
 
-            const animalName = args.slice(0, -1).join(' ') || args[0];
-            const amount = parseInt(args[args.length - 1]) || 1;
+            let qty = parseInt(args[args.length - 1], 10);
+            const nameParts = isNaN(qty) ? args : args.slice(0, -1);
+            if (isNaN(qty)) qty = 1;
+
+            const animalName = nameParts.join(' ').trim();
+
+            if (!animalName) {
+              socket.emit('game message', { type: 'system', message: 'Invalid animal name' });
+              return;
+            }
+
+            if (!Number.isInteger(qty) || qty <= 0) {
+              socket.emit('game message', { type: 'system', message: 'Quantity must be a positive integer' });
+              return;
+            }
 
             // Trigger sell via existing socket event
-            socket.emit('game sell animal', { animalName, quantity: amount });
+            socket.emit('game sell animal', { animalName, quantity: qty });
             return;
 
           case '/battle':
