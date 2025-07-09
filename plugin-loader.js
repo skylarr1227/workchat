@@ -1,6 +1,7 @@
 // Server-side Plugin Loader
 const fs = require('fs').promises;
 const path = require('path');
+const express = require('express');
 
 class ServerPluginLoader {
   constructor(io, app) {
@@ -76,8 +77,8 @@ class ServerPluginLoader {
       
       // Set up static routes for client files
       if (config.clientScript) {
-        this.app.use(`/js/plugins/${pluginId}`, this.app.express.static(pluginPath));
-        this.app.use(`/css/plugins/${pluginId}`, this.app.express.static(pluginPath));
+        this.app.use(`/js/plugins/${pluginId}`, express.static(pluginPath));
+        this.app.use(`/css/plugins/${pluginId}`, express.static(pluginPath));
       }
       
     } catch (err) {
