@@ -524,6 +524,8 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000
 });
+// Expose active users map for plugins
+io.activeUsers = activeUsers;
 
 // Serve static assets
 app.use(express.static(path.join(__dirname, '/')));
@@ -824,6 +826,9 @@ io.on('connection', async (socket) => {
       socket.emit('auth error', 'Username already taken in this room');
       return;
     }
+
+    // Store username on the socket for plugins
+    socket.username = sanitizedName;
 
     let isAdmin = false;
     if (password === USER_PASSWORD) {
