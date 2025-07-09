@@ -33,7 +33,9 @@ if (!fs.existsSync(dbDir)) {
 }
 
 // Initialize SQLite Database
-const dbPath = process.env.REPL_ID ? './pocketanimals.db' : path.join(dbDir, 'pocketanimals.db');
+const dbPath = process.env.NODE_ENV === 'test'
+  ? ':memory:'
+  : (process.env.REPL_ID ? './pocketanimals.db' : path.join(dbDir, 'pocketanimals.db'));
 const db = new sqlite3.Database(dbPath);
 
 db.on('trace', (sql) => {
@@ -746,6 +748,53 @@ async function performHunt(userId) {
   }
 }
 
+async function performSell(userId, animalName, quantity = 1) {
+  if (typeof animalName !== 'string' || animalName.trim() === '') {
+    throw new Error('Invalid animal name');
+  }
+
+  quantity = parseInt(quantity, 10);
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error('Quantity must be a positive integer');
+  }
+
+  animalName = animalName.trim();
+  const animals = await getUserAnimals(userId);
+  const animalsToSell = animals.filter(a => a.name === animalName);
+
+  if (animalsToSell.length < quantity) {
+    throw new Error('Not enough animals to sell');
+  }
+
+  const rarity = animalsToSell[0].rarity;
+  const sellValue = getSellValue(rarity);
+  const totalValue = sellValue * quantity;
+
+  for (let i = 0; i < quantity; i++) {
+    await new Promise((resolve, reject) => {
+      db.run(
+        'DELETE FROM animals WHERE id = ? AND user_id = ?',
+        [animalsToSell[i].id, userId],
+        function(err) {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  const user = await getUserById(userId);
+  await updateUserStats(user.id, { cowoncy: user.cowoncy + totalValue });
+
+  return {
+    success: true,
+    animalName,
+    quantity,
+    value: totalValue,
+    newCowoncy: user.cowoncy + totalValue
+  };
+}
+
 // Socket.IO Connection Handler
 io.on('connection', async (socket) => {
   console.log('Connected', socket.id);
@@ -983,58 +1032,9 @@ io.on('connection', async (socket) => {
     }
 
     try {
-      let { animalName, quantity = 1 } = data;
-
-      if (typeof animalName !== 'string' || animalName.trim() === '') {
-        socket.emit('game error', 'Invalid animal name');
-        return;
-      }
-
-      quantity = parseInt(quantity, 10);
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        socket.emit('game error', 'Quantity must be a positive integer');
-        return;
-      }
-
-      animalName = animalName.trim();
-      const animals = await getUserAnimals(session.userId);
-      const animalsToSell = animals.filter(a => a.name === animalName);
-
-      if (animalsToSell.length < quantity) {
-        socket.emit('game error', 'Not enough animals to sell');
-        return;
-      }
-
-      // Calculate sell value
-      const rarity = animalsToSell[0].rarity;
-      const sellValue = getSellValue(rarity);
-      const totalValue = sellValue * quantity;
-
-      // Delete animals one by one to avoid SQL issues
-      for (let i = 0; i < quantity; i++) {
-        await new Promise((resolve, reject) => {
-          db.run(
-            'DELETE FROM animals WHERE id = ? AND user_id = ?',
-            [animalsToSell[i].id, session.userId],
-            function(err) {
-              if (err) reject(err);
-              else resolve();
-            }
-          );
-        });
-      }
-
-      // Update user cowoncy
-      const user = await getUserById(session.userId);
-      await updateUserStats(user.id, { cowoncy: user.cowoncy + totalValue });
-
-      socket.emit('sell result', {
-        success: true,
-        animalName,
-        quantity,
-        value: totalValue,
-        newCowoncy: user.cowoncy + totalValue
-      });
+      const { animalName, quantity = 1 } = data;
+      const result = await performSell(session.userId, animalName, quantity);
+      socket.emit('sell result', result);
     } catch (error) {
       console.error('Sell error:', error);
       socket.emit('game error', error.message);
@@ -1406,8 +1406,12 @@ Active Sessions: ${activeGameSessions.size}
               return;
             }
 
-            // Trigger sell via existing socket event
-            socket.emit('game sell animal', { animalName, quantity: qty });
+            try {
+              const result = await performSell(session.userId, animalName, qty);
+              socket.emit('sell result', result);
+            } catch (error) {
+              socket.emit('game error', error.message);
+            }
             return;
 
           case '/battle':
@@ -1767,21 +1771,23 @@ Active Sessions: ${activeGameSessions.size}
   });
 });
 
-// Initialize database and start server
-initDatabase().then(async () => {
-  // Initialize plugins
-  await pluginLoader.initialize();
-  server.listen(PORT, () => {
-    console.log(`🚀 Enhanced Chat Server with PocketAnimals running on port ${PORT}`);
-    console.log(`💬 Chat rooms: ${rooms.join(', ')}`);
-    console.log(`🎮 PocketAnimals game integrated!`);
+// Initialize database and start server when run directly
+if (require.main === module) {
+  initDatabase().then(async () => {
+    await pluginLoader.initialize();
+    server.listen(PORT, () => {
+      console.log(`🚀 Enhanced Chat Server with PocketAnimals running on port ${PORT}`);
+      console.log(`💬 Chat rooms: ${rooms.join(', ')}`);
+      console.log(`🎮 PocketAnimals game integrated!`);
+    });
+  }).catch(error => {
+    console.error('Failed to initialize database:', error);
+    process.exit(1);
   });
-}).catch(error => {
-  console.error('Failed to initialize database:', error);
-  process.exit(1);
-});
+}
 
 // Cleanup intervals
+if (require.main === module) {
 setInterval(() => {
   const now = Date.now();
 
@@ -1824,6 +1830,7 @@ setInterval(async () => {
     console.error('Error updating leaderboard cache:', error);
   }
 }, 300000);
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -1846,5 +1853,14 @@ process.on('SIGINT', () => {
   server.close(() => {
     console.log('HTTP server closed');
     process.exit(0);
-  });
-});
+  });});
+
+module.exports = {
+  initDatabase,
+  db,
+  createUser,
+  addAnimalToUser,
+  getUserById,
+  getUserAnimals,
+  performSell
+};
