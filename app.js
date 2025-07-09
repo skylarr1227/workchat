@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateRoomTabs(rooms) {
-    roomTabs.innerHTML = '';
+  roomTabs.innerHTML = '';
 
     rooms.forEach(r => {
       const tab = document.createElement('div');
@@ -115,9 +115,97 @@ document.addEventListener('DOMContentLoaded', () => {
         tab.appendChild(unreadIndicator);
       }
 
-      tab.onclick = () => switchRoom(r);
-      roomTabs.appendChild(tab);
+  tab.onclick = () => switchRoom(r);
+  roomTabs.appendChild(tab);
+  });
+}
+
+  function processMessageText(text) {
+    const html = marked.parse(text || '');
+    return DOMPurify.sanitize(html);
+  }
+
+  function createMessage(msg) {
+    const div = document.createElement('div');
+    div.className = 'message';
+    div.dataset.messageId = msg.id;
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+
+    const author = document.createElement('span');
+    author.textContent = msg.author;
+    author.style.color = msg.color || '#fff';
+    meta.appendChild(author);
+
+    const time = document.createElement('span');
+    time.className = 'timestamp';
+    time.textContent = formatTime(msg.timestamp);
+    meta.appendChild(time);
+
+    if (msg.isAdminMessage) {
+      const badge = document.createElement('span');
+      badge.className = 'admin-badge';
+      badge.textContent = 'Admin';
+      meta.appendChild(badge);
+    }
+
+    if (msg.edited) {
+      const edited = document.createElement('span');
+      edited.className = 'edited';
+      edited.textContent = '(edited)';
+      meta.appendChild(edited);
+    }
+
+    div.appendChild(meta);
+
+    const textDiv = document.createElement('div');
+    textDiv.className = 'text';
+    textDiv.innerHTML = processMessageText(msg.text);
+
+    if (msg.file) {
+      const link = document.createElement('a');
+      link.href = `/uploads/${msg.file.filename}`;
+      link.textContent = msg.file.originalName;
+      link.target = '_blank';
+      link.className = 'file-link';
+      if (msg.file.mimeType && msg.file.mimeType.startsWith('image/')) {
+        link.classList.add('image-file');
+      }
+      textDiv.appendChild(link);
+    }
+
+    div.appendChild(textDiv);
+
+    div.oncontextmenu = (e) => {
+      e.preventDefault();
+      currentContextMessageId = msg.id;
+      const menu = document.getElementById('contextMenu');
+      menu.style.display = 'block';
+      menu.style.left = `${e.pageX}px`;
+      menu.style.top = `${e.pageY}px`;
+    };
+
+    return div;
+  }
+
+  function scrollToBottom(smooth = true) {
+    messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    isAtBottom = true;
+    document.getElementById('scrollToBottom').style.display = 'none';
+  }
+
+  function sendMessage() {
+    const text = msgInput.value.trim();
+    if (!text) return;
+    socket.emit('chat message', {
+      name: user.name,
+      text,
+      color: user.color,
+      room: currentRoom
     });
+    msgInput.value = '';
+    scrollToBottom();
   }
 
   function switchRoom(newRoom) {
@@ -145,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
     enterBtn.textContent = 'Enter Chat';
 
     document.title = `${currentRoom} - Workplace Chat`;
-  });
+  }
 
   socket.on('rooms updated', rooms => {
     updateRoomTabs(rooms);
@@ -315,6 +403,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   msgInput.addEventListener('input', updateTyping);
+
+  sendBtn.onclick = () => sendMessage();
+  msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
 
   socket.on('typing', ({ typingUsers }) => {
     if (typingUsers && typingUsers.length > 0) {
