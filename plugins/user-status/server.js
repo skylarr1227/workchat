@@ -33,10 +33,19 @@ class UserStatusPlugin {
       
       // Broadcast to all users in the same room
       const rooms = Array.from(socket.rooms).filter(r => r !== socket.id);
+      // Determine username from socket or activeUsers map
+      let username = socket.username;
+      if (!username && this.io.activeUsers) {
+        const user = this.io.activeUsers.get(socket.id);
+        if (user && user.username) {
+          username = user.username;
+        }
+      }
+
       rooms.forEach(room => {
         this.io.to(room).emit('status:update', {
           userId: socket.id,
-          username: socket.username || 'Unknown',
+          username: username || 'Unknown',
           status: newStatus
         });
       });
@@ -47,8 +56,15 @@ class UserStatusPlugin {
     const statuses = {};
     for (const [socketId, status] of this.userStatuses) {
       const socket = this.io.sockets.sockets.get(socketId);
-      if (socket && socket.username) {
-        statuses[socket.username] = status;
+      let username = socket && socket.username;
+      if (!username && this.io.activeUsers) {
+        const user = this.io.activeUsers.get(socketId);
+        if (user && user.username) {
+          username = user.username;
+        }
+      }
+      if (username) {
+        statuses[username] = status;
       }
     }
     return statuses;
