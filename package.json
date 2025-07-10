@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "pretest": "npm install",
     "init-db": "node -e \"const sqlite3 = require('sqlite3').verbose(); const db = new sqlite3.Database('./database/pocketanimals.db'); console.log('Database initialized'); db.close();\"",
     "backup-db": "cp ./database/pocketanimals.db ./database/backup-$(date +%Y%m%d-%H%M%S).db",
     "test": "node --test"
