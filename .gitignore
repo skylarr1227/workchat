@@ -1,0 +1,4 @@
+node_modules/
+pocketanimals.db
+uploads/
+database/*.db

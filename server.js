@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const fs = require('fs');
+const { exec } = require('child_process');
 const sqlite3 = require('sqlite3').verbose();
 const ServerPluginLoader = require('./plugin-loader');
 
@@ -21,6 +22,7 @@ const MAX_MESSAGES_PER_ROOM = 500;
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
 const MAX_MESSAGES_PER_MINUTE = 30;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || '';
 
 // Create directories
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -534,6 +536,7 @@ app.use(express.static(path.join(__dirname, '/')));
 app.use('/uploads', express.static(uploadsDir));
 app.use('/js', express.static(path.join(__dirname, 'public/js')));
 app.use('/css', express.static(path.join(__dirname, 'public/css')));
+app.use(express.json());
 
 // Initialize plugin system
 const pluginLoader = new ServerPluginLoader(io, app);
@@ -600,6 +603,29 @@ app.post('/upload', upload.single('file'), (req, res) => {
 });
 
 app.get('/rooms', (req, res) => res.json({ rooms }));
+
+app.post('/git-webhook', (req, res) => {
+  const signature = req.headers['x-hub-signature-256'];
+  if (WEBHOOK_SECRET) {
+    const digest = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET)
+      .update(JSON.stringify(req.body))
+      .digest('hex');
+    if (signature !== digest) {
+      return res.status(401).send('Invalid signature');
+    }
+  }
+  if (req.headers['x-github-event'] !== 'push') {
+    return res.status(200).send('Ignored');
+  }
+  exec('git pull', (err, stdout, stderr) => {
+    if (err) {
+      console.error('Git pull failed:', stderr);
+      return res.status(500).send('Pull failed');
+    }
+    console.log('Git pull output:', stdout);
+    res.send('Repository updated');
+  });
+});
 
 // Utility functions
 function sanitizeInput(input, maxLength = 100) {

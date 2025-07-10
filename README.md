@@ -42,4 +42,12 @@ The server uses `plugin-loader.js` to discover plugins and expose their client f
 
 This repository ships with a `user-status` plugin located in `plugins/user-status`. It adds online/away/busy indicators for users and demonstrates how both server and client code can interact through the hook system.
 
+## Automatic Updates
+
+The server can automatically pull the latest code when changes are pushed to the
+repository. Set the `GITHUB_WEBHOOK_SECRET` environment variable and create a
+GitHub webhook that sends **push** events to `/git-webhook` on your deployed
+server. When a valid webhook is received, the server executes `git pull` to
+update the codebase.
+
 
