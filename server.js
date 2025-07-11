@@ -1385,6 +1385,21 @@ Active Sessions: ${activeGameSessions.size}
             socket.emit('game message', { type: 'system', message: zooText });
             return;
 
+          case '/team':
+            const teamAnimals = await getUserTeam(session.userId);
+
+            let teamText = '⚔️ **Your Team:**\n';
+            if (teamAnimals.length === 0) {
+              teamText += 'No team members set.';
+            } else {
+              teamAnimals.forEach((a, idx) => {
+                teamText += `${idx + 1}. ${a.emoji} ${a.name} Lv.${a.level}\n`;
+              });
+            }
+
+            socket.emit('game message', { type: 'system', message: teamText });
+            return;
+
           case '/stats':
             const userStats = await getUserById(session.userId);  // Fixed: use getUserById
             const userAnimals = await getUserAnimals(userStats.id);
