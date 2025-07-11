@@ -40,6 +40,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const huntAnimation = document.getElementById('huntAnimation');
   const huntProgress = document.getElementById('huntProgress');
   const huntText = document.getElementById('huntText');
+  const zooBtn = document.getElementById('zooBtn');
+  const teamBtn = document.getElementById('teamBtn');
+  const battleBtn = document.getElementById('battleBtn');
+  const leaderboardBtn = document.getElementById('leaderboardBtn');
+
+  // Game button handlers
+  huntBtn.onclick = () => {
+    if (huntBtn.disabled) return;
+    huntBtn.disabled = true;
+    huntAnimation.style.display = 'block';
+    huntProgress.style.width = '0%';
+    huntText.textContent = '🔍 Searching for animals...';
+    socket.emit('game hunt');
+  };
+
+  zooBtn.onclick = () => sendGameCommand('/zoo');
+  teamBtn.onclick = () => sendGameCommand('/team');
+  leaderboardBtn.onclick = () => sendGameCommand('/leaderboard');
+  battleBtn.onclick = () => {
+    const choice = prompt('Battle which opponent? (1-4)');
+    if (choice) sendGameCommand(`/battle ${choice}`);
+  };
+
+  gameBtn.onclick = (e) => {
+    e.stopPropagation();
+    gameQuickActions.classList.toggle('active');
+  };
 
   let user = { name: '', color: '' };
   let userList = [];
@@ -123,6 +150,40 @@ document.addEventListener('DOMContentLoaded', () => {
   function processMessageText(text) {
     const html = marked.parse(text || '');
     return DOMPurify.sanitize(html);
+  }
+
+  // Create a DOM element for PocketAnimals messages
+  function createGameMessage(data) {
+    const div = document.createElement('div');
+    div.className = 'game-message';
+
+    switch (data.type) {
+      case 'system':
+        div.innerHTML = processMessageText(data.message.replace(/\n/g, '<br>'));
+        break;
+      case 'hunt':
+        const animals = (data.animals || []).map(a => a.emoji || a.name).join(' ');
+        div.textContent = `🎯 ${data.username} caught: ${animals}`;
+        break;
+      case 'battle':
+        div.textContent = `🥊 ${data.username} ${data.won ? 'defeated' : 'lost to'} ${data.opponent}`;
+        break;
+      default:
+        div.textContent = data.message || '';
+    }
+
+    return div;
+  }
+
+  // Helper to send game commands via chat
+  function sendGameCommand(cmd) {
+    if (!cmd.startsWith('/')) return;
+    socket.emit('chat message', {
+      name: user.name,
+      text: cmd,
+      color: user.color,
+      room: currentRoom
+    });
   }
 
   function createMessage(msg) {
@@ -321,6 +382,54 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       huntBtn.disabled = false;
     }, 15000);
+  });
+
+  socket.on('sell result', (data) => {
+    if (data.success) {
+      showNotification(`Sold ${data.quantity} ${data.animalName} for ${data.value}💰`, 'success');
+      gameData.user.cowoncy = data.newCowoncy;
+      updateGameUI();
+    }
+  });
+
+  socket.on('team updated', ({ team }) => {
+    gameData.team = team;
+    showNotification('Team updated!', 'success');
+  });
+
+  socket.on('battle result', (data) => {
+    const msg = data.won ? `You defeated ${data.opponent} and earned ${data.reward}💰` : `You lost to ${data.opponent}`;
+    showNotification(msg, data.won ? 'success' : 'error');
+    if (data.won && typeof data.reward === 'number') {
+      gameData.user.cowoncy += data.reward;
+      updateGameUI();
+    }
+  });
+
+  socket.on('heal result', (data) => {
+    if (data.success) {
+      gameData.user.cowoncy = data.newCowoncy;
+      showNotification('Team healed!', 'success');
+      updateGameUI();
+    }
+  });
+
+  socket.on('level up result', (data) => {
+    if (data.success) {
+      showNotification('Animal leveled up!', 'success');
+      gameData.user.cowoncy = data.newCowoncy;
+      updateGameUI();
+    }
+  });
+
+  socket.on('leaderboard data', ({ leaderboard }) => {
+    let text = '🏆 Top Players:\n';
+    leaderboard.forEach((p, i) => {
+      text += `${i + 1}. ${p.username} (Lv.${p.level}, ${p.total_animals} animals)\n`;
+    });
+    const div = createGameMessage({ type: 'system', message: text });
+    messagesEl.appendChild(div);
+    scrollToBottom();
   });
 
   socket.on('game message', (data) => {
