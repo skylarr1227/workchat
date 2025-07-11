@@ -235,6 +235,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.title = `${currentRoom} - Workplace Chat`;
   }
 
+  // Handle initial login
+  enterBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      showNotification('Enter a display name', 'error');
+      return;
+    }
+
+    user.name = name;
+    user.color = colorInput.value;
+    localStorage.setItem('chatUsername', user.name);
+    localStorage.setItem('chatUserColor', user.color);
+
+    enterBtn.disabled = true;
+    enterBtn.textContent = 'Connecting...';
+
+    socket.emit('join room', {
+      name: user.name,
+      room: currentRoom,
+      password: passInput.value
+    });
+  });
+
   socket.on('rooms updated', rooms => {
     updateRoomTabs(rooms);
   });
