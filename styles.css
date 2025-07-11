@@ -624,6 +624,10 @@ html, body {
 .game-message.system {
   background: linear-gradient(135deg, #0585aa 0%, #047291 100%);
   color: #2d3436;
+  font-size: 0.85rem;
+  padding: 6px;
+  margin: 4px 0;
+  line-height: 1.2;
 }
 
 .game-message.hunt {
