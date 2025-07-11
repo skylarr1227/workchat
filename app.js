@@ -277,6 +277,13 @@ document.addEventListener('DOMContentLoaded', () => {
     unreadRooms.delete(newRoom);
     isInGameRoom = newRoom === 'pocketanimals';
 
+    // Inform server about the room change
+    socket.emit('join room', {
+      name: user.name,
+      room: newRoom,
+      password: passInput.value
+    });
+
     // Update UI based on room
     gamePanel.classList.toggle('active', isInGameRoom);
     gameQuickActions.classList.toggle('active', isInGameRoom);
