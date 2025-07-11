@@ -536,7 +536,12 @@ app.use(express.static(path.join(__dirname, '/')));
 app.use('/uploads', express.static(uploadsDir));
 app.use('/js', express.static(path.join(__dirname, 'public/js')));
 app.use('/css', express.static(path.join(__dirname, 'public/css')));
-app.use(express.json());
+// Capture raw body for GitHub webhook signature verification
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 
 // Initialize plugin system
 const pluginLoader = new ServerPluginLoader(io, app);
@@ -608,7 +613,7 @@ app.post('/git-webhook', (req, res) => {
   const signature = req.headers['x-hub-signature-256'];
   if (WEBHOOK_SECRET) {
     const digest = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET)
-      .update(JSON.stringify(req.body))
+      .update(req.rawBody)
       .digest('hex');
     if (signature !== digest) {
       return res.status(401).send('Invalid signature');
@@ -617,6 +622,7 @@ app.post('/git-webhook', (req, res) => {
   if (req.headers['x-github-event'] !== 'push') {
     return res.status(200).send('Ignored');
   }
+  console.log('Received GitHub push webhook');
   exec('git pull', (err, stdout, stderr) => {
     if (err) {
       console.error('Git pull failed:', stderr);
