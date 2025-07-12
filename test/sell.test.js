@@ -7,7 +7,8 @@ const {
   addAnimalToUser,
   getUserById,
   getUserAnimals,
-  performSell
+  performSell,
+  db
 } = require('../server');
 
 const dog = {
@@ -33,4 +34,8 @@ test('performSell sells animals via command', async () => {
   assert.strictEqual(result.newCowoncy, 106);
   const remaining = await getUserAnimals(userId);
   assert.strictEqual(remaining.length, 0);
+});
+
+test.after(() => {
+  db.close();
 });
