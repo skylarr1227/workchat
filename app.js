@@ -682,6 +682,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
       document.body.appendChild(statsModal);
     });
+
+    window.loadPluginList = async function loadPluginList() {
+      try {
+        const res = await fetch('/api/plugins');
+        const plugins = await res.json();
+        const container = document.getElementById('pluginList');
+        container.innerHTML = '';
+        plugins.forEach(p => {
+          const item = document.createElement('div');
+          item.className = 'plugin-item';
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = p.name;
+          const toggleBtn = document.createElement('button');
+          toggleBtn.textContent = p.enabled ? 'Disable' : 'Enable';
+          toggleBtn.onclick = async () => {
+            await fetch(`/api/plugins/${p.id}/${p.enabled ? 'disable' : 'enable'}`, { method: 'POST' });
+            window.loadPluginList();
+          };
+          const reloadBtn = document.createElement('button');
+          reloadBtn.textContent = 'Reload';
+          reloadBtn.onclick = async () => {
+            await fetch(`/api/plugins/${p.id}/reload`, { method: 'POST' });
+            showNotification('Plugin reloaded', 'success');
+          };
+          item.appendChild(nameSpan);
+          item.appendChild(toggleBtn);
+          item.appendChild(reloadBtn);
+          container.appendChild(item);
+        });
+      } catch (err) {
+        console.error('Failed to load plugins', err);
+      }
+    }
   }
 
   // Keyboard shortcuts
@@ -878,6 +911,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (isAdmin) {
       adminControls.style.display = 'block';
+      if (typeof window.loadPluginList === 'function') {
+        window.loadPluginList();
+      }
     }
 
     // Update UI for game room

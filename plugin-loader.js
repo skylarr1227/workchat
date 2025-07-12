@@ -72,7 +72,8 @@ class ServerPluginLoader {
       this.plugins.set(pluginId, {
         instance,
         config,
-        path: pluginPath
+        path: pluginPath,
+        enabled: true
       });
       
       // Set up static routes for client files
@@ -91,7 +92,7 @@ class ServerPluginLoader {
     const results = [];
     
     for (const [id, plugin] of this.plugins) {
-      if (plugin.instance && plugin.instance[hookName]) {
+      if (plugin.enabled !== false && plugin.instance && plugin.instance[hookName]) {
         try {
           const result = await plugin.instance[hookName](...args);
           results.push(result);
@@ -106,13 +107,13 @@ class ServerPluginLoader {
 
   getActivePlugins() {
     const plugins = [];
-    
+
     for (const [id, plugin] of this.plugins) {
       plugins.push({
         id,
         name: plugin.config.name,
         version: plugin.config.version,
-        enabled: true,
+        enabled: plugin.enabled !== false,
         clientScript: plugin.config.clientScript || false,
         description: plugin.config.description || ''
       });
@@ -134,6 +135,32 @@ class ServerPluginLoader {
     
     // Reload
     await this.loadPlugin(pluginId, path.join(this.pluginDir, pluginId));
+  }
+
+  async enablePlugin(pluginId) {
+    const plugin = this.plugins.get(pluginId);
+    if (!plugin) {
+      await this.loadPlugin(pluginId, path.join(this.pluginDir, pluginId));
+      return;
+    }
+
+    if (plugin.enabled) return;
+
+    await this.reloadPlugin(pluginId);
+    const reloaded = this.plugins.get(pluginId);
+    if (reloaded) reloaded.enabled = true;
+  }
+
+  async disablePlugin(pluginId) {
+    const plugin = this.plugins.get(pluginId);
+    if (!plugin || !plugin.enabled) return;
+
+    if (plugin.instance && plugin.instance.cleanup) {
+      await plugin.instance.cleanup();
+    }
+
+    plugin.instance = null;
+    plugin.enabled = false;
   }
 }
 

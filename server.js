@@ -538,9 +538,36 @@ app.use('/css', express.static(path.join(__dirname, 'public/css')));
 // Initialize plugin system
 const pluginLoader = new ServerPluginLoader(io, app);
 
-// API endpoint for plugins
+// API endpoints for plugins
 app.get('/api/plugins', (req, res) => {
   res.json(pluginLoader.getActivePlugins());
+});
+
+app.post('/api/plugins/:id/enable', async (req, res) => {
+  try {
+    await pluginLoader.enablePlugin(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/plugins/:id/disable', async (req, res) => {
+  try {
+    await pluginLoader.disablePlugin(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/plugins/:id/reload', async (req, res) => {
+  try {
+    await pluginLoader.reloadPlugin(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Game API endpoints

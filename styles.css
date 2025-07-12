@@ -174,8 +174,20 @@ html, body {
   background: #f04747; 
 }
 
-#adminControls button.danger:hover { 
-  background: #d73535; 
+#adminControls button.danger:hover {
+  background: #d73535;
+}
+
+#pluginList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#pluginList .plugin-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 #adminControls select {
