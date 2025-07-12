@@ -47,7 +47,8 @@ This repository ships with a `user-status` plugin located in `plugins/user-statu
 The server can automatically pull the latest code when changes are pushed to the
 repository. Set the `GITHUB_WEBHOOK_SECRET` environment variable and create a
 GitHub webhook that sends **push** events to `/git-webhook` on your deployed
-server. When a valid webhook is received, the server executes `git pull` to
-update the codebase.
+server. When a valid webhook is received, the server executes `git pull`
+followed by `npm install` to update dependencies, then restarts itself so
+the new code is immediately active.
 
 

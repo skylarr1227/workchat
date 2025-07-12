@@ -629,7 +629,18 @@ app.post('/git-webhook', (req, res) => {
       return res.status(500).send('Pull failed');
     }
     console.log('Git pull output:', stdout);
-    res.send('Repository updated');
+    exec('npm install --omit=dev', (instErr, instStdout, instStderr) => {
+      if (instErr) {
+        console.error('npm install failed:', instStderr);
+      } else {
+        console.log('npm install output:', instStdout);
+      }
+      res.send('Repository updated, restarting server');
+      res.on('finish', () => {
+        console.log('Restarting server to apply updates');
+        process.exit(0);
+      });
+    });
   });
 });
 
