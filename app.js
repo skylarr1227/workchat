@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const teamBtn = document.getElementById('teamBtn');
   const battleBtn = document.getElementById('battleBtn');
   const leaderboardBtn = document.getElementById('leaderboardBtn');
+  let huntCooldownInterval = null;
 
   // Game button handlers
   huntBtn.onclick = () => {
@@ -52,6 +53,19 @@ document.addEventListener('DOMContentLoaded', () => {
     huntAnimation.style.display = 'block';
     huntProgress.style.width = '0%';
     huntText.textContent = '🔍 Searching for animals...';
+    let start = Date.now();
+    const cooldown = 15000;
+    if (huntCooldownInterval) clearInterval(huntCooldownInterval);
+    huntCooldownInterval = setInterval(() => {
+      const pct = Math.min(1, (Date.now() - start) / cooldown) * 100;
+      huntProgress.style.width = pct + '%';
+      if (pct >= 100) {
+        clearInterval(huntCooldownInterval);
+        huntCooldownInterval = null;
+        huntAnimation.style.display = 'none';
+        huntBtn.disabled = false;
+      }
+    }, 200);
     socket.emit('game hunt');
   };
 
@@ -415,25 +429,23 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   socket.on('hunt result', (result) => {
-    huntAnimation.style.display = 'none';
-    huntBtn.disabled = false;
+    const messageDiv = createGameMessage({ type: 'hunt', username: user.name, animals: result.animals });
+    messagesEl.appendChild(messageDiv);
+    if (isAtBottom) scrollToBottom();
 
     if (result.success) {
+      huntText.textContent = 'Cooldown...';
       gameData.user = { ...gameData.user, ...result.newStats };
       updateGameUI();
+    } else {
+      huntText.textContent = 'Cooldown...';
+    }
 
-      const animalNames = result.animals.map(a => a.emoji || a.name.split(' ')[0]).join(' ');
-      showNotification(`🎯 Hunt successful! Caught: ${animalNames}`, 'game', 3000);
-
+    if (result.success) {
       if (result.gotLootbox) {
         showNotification('📦 Bonus lootbox obtained!', 'success', 3000);
       }
     }
-
-    // Set cooldown
-    setTimeout(() => {
-      huntBtn.disabled = false;
-    }, 15000);
   });
 
   socket.on('sell result', (data) => {
