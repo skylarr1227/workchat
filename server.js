@@ -12,8 +12,8 @@ const sqlite3 = require('sqlite3').verbose();
 const ServerPluginLoader = require('./plugin-loader');
 
 // Configuration
-const SSL_KEY_PATH = process.env.SSL_KEY_PATH || path.join(__dirname, 'ssl/key.pem');
-const SSL_CERT_PATH = process.env.SSL_CERT_PATH || path.join(__dirname, 'ssl/cert.pem');
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || path.join(__dirname, '/etc/letsencrypt/live/sidechat.work/privkey.pem');
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || path.join(__dirname, '/etc/letsencrypt/live/sidechat.work/fullchain.pem');
 const useHttps = fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH);
 const PORT = process.env.PORT || (useHttps ? 443 : 3000);
 const USER_PASSWORD = '1';
