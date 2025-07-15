@@ -166,6 +166,34 @@ document.addEventListener('DOMContentLoaded', () => {
     return DOMPurify.sanitize(html);
   }
 
+  const reactionEmojis = {
+    thumbsup: '👍',
+    heart: '❤️',
+    laugh: '😂',
+    fire: '🔥',
+    clap: '👏',
+    sad: '😢',
+    angry: '😠',
+    surprised: '😮'
+  };
+
+  function renderReactions(container, reactions) {
+    container.innerHTML = '';
+    if (!reactions) return;
+    Object.entries(reactions).forEach(([name, users]) => {
+      if (Array.isArray(users) && users.length > 0 && reactionEmojis[name]) {
+        const span = document.createElement('span');
+        span.className = 'reaction-display';
+        span.dataset.reaction = name;
+        span.textContent = `${reactionEmojis[name]} ${users.length}`;
+        if (users.includes(user.name)) {
+          span.classList.add('user-reacted');
+        }
+        container.appendChild(span);
+      }
+    });
+  }
+
   // Create a DOM element for PocketAnimals messages
   function createGameMessage(data) {
     const div = document.createElement('div');
@@ -208,6 +236,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const meta = document.createElement('div');
     meta.className = 'meta';
 
+    const reactionWrap = document.createElement('span');
+    reactionWrap.className = 'reaction-container';
+    meta.appendChild(reactionWrap);
+
     const author = document.createElement('span');
     author.textContent = msg.author;
     author.style.color = msg.color || '#fff';
@@ -231,6 +263,9 @@ document.addEventListener('DOMContentLoaded', () => {
       edited.textContent = '(edited)';
       meta.appendChild(edited);
     }
+
+    renderReactions(reactionWrap, msg.reactions);
+    div.reactions = JSON.parse(JSON.stringify(msg.reactions || {}));
 
     div.appendChild(meta);
 
@@ -259,6 +294,14 @@ document.addEventListener('DOMContentLoaded', () => {
       menu.style.display = 'block';
       menu.style.left = `${e.pageX}px`;
       menu.style.top = `${e.pageY}px`;
+      menu.querySelectorAll('.reaction-item').forEach(item => {
+        const r = item.dataset.reaction;
+        if (div.reactions && div.reactions[r] && div.reactions[r].includes(user.name)) {
+          item.classList.add('user-reacted');
+        } else {
+          item.classList.remove('user-reacted');
+        }
+      });
     };
 
     return div;
@@ -295,7 +338,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.emit('join room', {
       name: user.name,
       room: newRoom,
-      password: passInput.value
+      password: passInput.value,
+      color: user.color
     });
 
     // Update UI based on room
@@ -336,7 +380,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.emit('join room', {
       name: user.name,
       room: currentRoom,
-      password: passInput.value
+      password: passInput.value,
+      color: user.color
     });
   });
 
@@ -526,10 +571,11 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('connect', () => {
     if (app.classList.contains('chat-open')) {
       showNotification('Reconnected to server', 'success');
-      socket.emit('join room', { 
-        name: user.name, 
-        room: currentRoom, 
-        password: passInput.value 
+      socket.emit('join room', {
+        name: user.name,
+        room: currentRoom,
+        password: passInput.value,
+        color: user.color
       });
     }
   });
@@ -750,7 +796,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Additional socket events for reactions, editing, etc.
   socket.on('reaction updated', ({ messageId, reaction, users }) => {
-    // Handle reaction updates if needed
+    const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageDiv) {
+      if (!messageDiv.reactions) messageDiv.reactions = {};
+      messageDiv.reactions[reaction] = users;
+      const container = messageDiv.querySelector('.reaction-container');
+      if (container) {
+        renderReactions(container, messageDiv.reactions);
+      }
+    }
   });
 
   socket.on('message edited', ({ messageId, newText }) => {

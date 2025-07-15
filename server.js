@@ -12,8 +12,8 @@ const sqlite3 = require('sqlite3').verbose();
 const ServerPluginLoader = require('./plugin-loader');
 
 // Configuration
-const SSL_KEY_PATH = process.env.SSL_KEY_PATH || path.join(__dirname, 'ssl/key.pem');
-const SSL_CERT_PATH = process.env.SSL_CERT_PATH || path.join(__dirname, 'ssl/cert.pem');
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || path.join(__dirname, '/etc/letsencrypt/live/sidechat.work/privkey.pem');
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || path.join(__dirname, '/etc/letsencrypt/live/sidechat.work/fullchain.pem');
 const useHttps = fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH);
 const PORT = process.env.PORT || (useHttps ? 443 : 3000);
 const USER_PASSWORD = '1';
@@ -996,9 +996,10 @@ io.on('connection', async (socket) => {
   await pluginLoader.executeHook('onConnect', socket);
 
   // Chat functionality (existing code)
-  socket.on('join room', async ({ name, room, password }) => {
+  socket.on('join room', async ({ name, room, password, color }) => {
     const sanitizedName = sanitizeInput(name, MAX_USERNAME_LENGTH);
     const sanitizedRoom = sanitizeInput(room, MAX_ROOM_NAME_LENGTH);
+    const sanitizedColor = sanitizeInput(color || '#ffffff', 20);
 
     if (!sanitizedName || !sanitizedRoom) {
       socket.emit('auth error', 'Invalid name or room');
@@ -1090,11 +1091,12 @@ io.on('connection', async (socket) => {
 
     socket.isAdmin = isAdmin;
     socket.currentRoom = sanitizedRoom;
+    socket.userColor = sanitizedColor;
 
     activeUsers.set(socket.id, {
       username: sanitizedName,
       room: sanitizedRoom,
-      color: socket.userColor || '#ffffff',
+      color: sanitizedColor,
       joinTime: Date.now(),
       isAdmin: isAdmin
     });
