@@ -25,7 +25,10 @@ Start the application with:
 npm start
 ```
 
-The server listens on port `3000` by default. Once running, open your browser and navigate to <http://localhost:3000> to access the chat UI and PocketAnimals game.
+By default the server attempts to start over **HTTPS** on port `443` if SSL certificates are available. Provide the `SSL_KEY_PATH` and `SSL_CERT_PATH` environment variables (or place `ssl/key.pem` and `ssl/cert.pem` in the project root) to enable HTTPS.
+
+If certificates are not found the server falls back to HTTP on port `3000`.
+Once running, open your browser and navigate to the appropriate URL (e.g. <https://localhost> when using HTTPS) to access the chat UI and PocketAnimals game.
 
 ## Plugin System
 

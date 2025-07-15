@@ -1,6 +1,7 @@
 // server.js - Enhanced with PocketAnimals integration
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { Server } = require('socket.io');
 const path = require('path');
 const crypto = require('crypto');
@@ -11,7 +12,10 @@ const sqlite3 = require('sqlite3').verbose();
 const ServerPluginLoader = require('./plugin-loader');
 
 // Configuration
-const PORT = process.env.PORT || 3000;
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || path.join(__dirname, 'ssl/key.pem');
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || path.join(__dirname, 'ssl/cert.pem');
+const useHttps = fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH);
+const PORT = process.env.PORT || (useHttps ? 443 : 3000);
 const USER_PASSWORD = '1';
 const ADMIN_PASSWORD = '2';
 const EDIT_DELETE_WINDOW = 5 * 60 * 1000; // 5 minutes
@@ -516,10 +520,15 @@ const activeGameSessions = new Map(); // userId -> game session data
 const huntCooldowns = new Map(); // userId -> cooldown timestamp
 const battleQueues = new Map(); // battleType -> array of userIds
 
-// Initialize Express and HTTP server
+// Initialize Express and HTTP/HTTPS server
 const app = express();
 app.express = express; // Make express available to plugins
-const server = http.createServer(app);
+const server = useHttps ?
+  https.createServer({
+    key: fs.readFileSync(SSL_KEY_PATH),
+    cert: fs.readFileSync(SSL_CERT_PATH)
+  }, app) :
+  http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -1834,7 +1843,8 @@ if (require.main === module) {
   initDatabase().then(async () => {
     await pluginLoader.initialize();
     server.listen(PORT, () => {
-      console.log(`🚀 Enhanced Chat Server with PocketAnimals running on port ${PORT}`);
+      const protocol = useHttps ? 'https' : 'http';
+      console.log(`🚀 Enhanced Chat Server with PocketAnimals running on ${protocol} port ${PORT}`);
       console.log(`💬 Chat rooms: ${rooms.join(', ')}`);
       console.log(`🎮 PocketAnimals game integrated!`);
     });
@@ -1892,24 +1902,24 @@ setInterval(async () => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
+  console.log('SIGTERM signal received: closing server');
   db.close((err) => {
     if (err) console.error('Error closing database:', err);
     else console.log('Database connection closed');
   });
   server.close(() => {
-    console.log('HTTP server closed');
+    console.log('Server closed');
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server');
+  console.log('SIGINT signal received: closing server');
   db.close((err) => {
     if (err) console.error('Error closing database:', err);
     else console.log('Database connection closed');
   });
   server.close(() => {
-    console.log('HTTP server closed');
+    console.log('Server closed');
     process.exit(0);
   });});
 
