@@ -488,13 +488,32 @@ html, body {
   border-left: 3px solid #7289da;
 }
 
-.message .meta { 
-  font-size: 0.8rem; 
-  color: #aaa; 
-  margin-bottom: 4px; 
-  display: flex; 
-  align-items: center; 
+.message .meta {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.message .reaction-container {
+  display: inline-flex;
+  gap: 4px;
+  margin-right: 4px;
+}
+
+.message .reaction-display {
+  background: #4f545c;
+  border-radius: 12px;
+  padding: 0 6px;
+  font-size: 0.75rem;
+  cursor: default;
+  color: #fff;
+}
+
+.message .reaction-display.user-reacted {
+  background: #7289da;
 }
 
 .message .meta .timestamp {
