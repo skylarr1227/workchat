@@ -112,6 +112,7 @@ function initDatabase() {
         caught_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         is_in_team BOOLEAN DEFAULT 0,
         team_position INTEGER,
+        held_item TEXT,
         FOREIGN KEY (user_id) REFERENCES users (id)
       )`, (err) => {
         if (err) {
@@ -120,6 +121,24 @@ function initDatabase() {
           return;
         }
         console.log('Animals table ready');
+
+        // Add held_item column if it does not exist (for older DBs)
+        db.all("PRAGMA table_info(animals)", (err, columns) => {
+          if (err) {
+            console.error('Error checking animals table columns:', err);
+            return;
+          }
+          const hasHeldItem = columns.some(c => c.name === 'held_item');
+          if (!hasHeldItem) {
+            db.run('ALTER TABLE animals ADD COLUMN held_item TEXT', (err) => {
+              if (err) {
+                console.error('Error adding held_item column:', err);
+              } else {
+                console.log('held_item column added');
+              }
+            });
+          }
+        });
       });
 
       // Inventory table for gems/weapons
@@ -410,6 +429,14 @@ function getUserAnimals(userId) {
   });
 }
 
+function getAnimalById(animalId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM animals WHERE id = ?', [animalId], (err, row) => {
+      if (err) reject(err); else resolve(row);
+    });
+  });
+}
+
 function addAnimalToUser(userId, animalData) {
   return new Promise((resolve, reject) => {
     const { name, emoji, rarity, level, str, mag, pr, mr, hp, wp } = animalData;
@@ -461,6 +488,120 @@ function updateTeam(userId, animalIds) {
       try { await runDb('ROLLBACK'); } catch (_) {}
       reject(err);
     }
+  });
+}
+
+async function setTeamSlot(userId, animalId, slot) {
+  if (slot < 0 || slot > 2) throw new Error('Invalid team slot');
+
+  await runDb('BEGIN TRANSACTION');
+  try {
+    await runDb('UPDATE animals SET is_in_team = 0, team_position = NULL WHERE user_id = ? AND team_position = ?', [userId, slot]);
+    await runDb('UPDATE animals SET is_in_team = 1, team_position = ? WHERE id = ? AND user_id = ?', [slot, animalId, userId]);
+    await runDb('COMMIT');
+  } catch (err) {
+    try { await runDb('ROLLBACK'); } catch (_) {}
+    throw err;
+  }
+}
+
+function getInventory(userId) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM inventory WHERE user_id = ? ORDER BY item_name', [userId], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+async function equipItem(userId, animalId, itemName) {
+  const item = await new Promise((resolve, reject) => {
+    db.get('SELECT * FROM inventory WHERE user_id = ? AND item_name = ? AND quantity > 0', [userId, itemName], (err, row) => {
+      if (err) reject(err); else resolve(row);
+    });
+  });
+  if (!item) throw new Error('Item not found in inventory');
+
+  await runDb('UPDATE animals SET held_item = ? WHERE id = ? AND user_id = ?', [itemName, animalId, userId]);
+  await runDb('UPDATE inventory SET quantity = quantity - 1 WHERE id = ?', [item.id]);
+}
+
+async function unequipItem(userId, animalId) {
+  const animal = await new Promise((resolve, reject) => {
+    db.get('SELECT held_item FROM animals WHERE id = ? AND user_id = ?', [animalId, userId], (err, row) => {
+      if (err) reject(err); else resolve(row);
+    });
+  });
+  if (!animal || !animal.held_item) throw new Error('Animal has no item equipped');
+
+  const itemName = animal.held_item;
+  const existing = await new Promise((resolve, reject) => {
+    db.get('SELECT id FROM inventory WHERE user_id = ? AND item_name = ?', [userId, itemName], (err, row) => {
+      if (err) reject(err); else resolve(row);
+    });
+  });
+
+  if (existing) {
+    await runDb('UPDATE inventory SET quantity = quantity + 1 WHERE id = ?', [existing.id]);
+  } else {
+    await runDb('INSERT INTO inventory (user_id, item_type, item_name, quantity) VALUES (?, ?, ?, 1)', [userId, 'misc', itemName]);
+  }
+
+  await runDb('UPDATE animals SET held_item = NULL WHERE id = ? AND user_id = ?', [animalId, userId]);
+}
+
+async function handleAIBattle(socket, session, opponentIndex) {
+  const team = await getUserTeam(session.userId);
+
+  if (team.length === 0) {
+    throw new Error('No team set for battle');
+  }
+
+  const aiOpponents = [
+    { name: 'Newbie Trainer', difficulty: 'Easy', reward: 100 },
+    { name: 'Casual Player', difficulty: 'Medium', reward: 200 },
+    { name: 'Experienced Hunter', difficulty: 'Hard', reward: 400 },
+    { name: 'Elite Master', difficulty: 'Extreme', reward: 800 }
+  ];
+
+  const opponent = aiOpponents[opponentIndex];
+  if (!opponent) throw new Error('Invalid opponent');
+
+  const playerPower = team.reduce((sum, a) => sum + a.str + a.mag, 0);
+  const aiPower = 50 + opponentIndex * 100;
+  const winChance = Math.min(0.9, Math.max(0.1, playerPower / (playerPower + aiPower)));
+  const won = Math.random() < winChance;
+
+  const user = await getUserById(session.userId);
+  await new Promise((resolve, reject) => {
+    db.run(
+      'INSERT INTO battles (player1_id, battle_type, winner_id, battle_data, reward_amount) VALUES (?, ?, ?, ?, ?)',
+      [user.id, 'ai', won ? user.id : null, JSON.stringify({ opponent: opponent.name, playerPower, aiPower }), won ? opponent.reward : 0],
+      function(err) { if (err) reject(err); else resolve(); }
+    );
+  });
+
+  if (won) {
+    await updateUserStats(user.id, {
+      cowoncy: user.cowoncy + opponent.reward,
+      experience: user.experience + opponent.reward / 10
+    });
+  }
+
+  socket.emit('battle result', {
+    success: true,
+    won,
+    opponent: opponent.name,
+    reward: won ? opponent.reward : 0,
+    playerPower,
+    aiPower
+  });
+
+  io.to('pocketanimals').emit('game message', {
+    type: 'battle',
+    username: session.username,
+    won,
+    opponent: opponent.name
   });
 }
 
@@ -1196,73 +1337,7 @@ io.on('connection', async (socket) => {
     if (!session) return;
 
     try {
-      const { opponentIndex } = data;
-      const team = await getUserTeam(session.userId);
-
-      if (team.length === 0) {
-        socket.emit('game error', 'No team set for battle');
-        return;
-      }
-
-      // AI opponents (simplified from original)
-      const aiOpponents = [
-        { name: "Newbie Trainer", difficulty: "Easy", reward: 100 },
-        { name: "Casual Player", difficulty: "Medium", reward: 200 },
-        { name: "Experienced Hunter", difficulty: "Hard", reward: 400 },
-        { name: "Elite Master", difficulty: "Extreme", reward: 800 }
-      ];
-
-      const opponent = aiOpponents[opponentIndex];
-      if (!opponent) {
-        socket.emit('game error', 'Invalid opponent');
-        return;
-      }
-
-      // Simple battle simulation
-      const playerPower = team.reduce((sum, animal) => sum + animal.str + animal.mag, 0);
-      const aiPower = 50 + (opponentIndex * 100); // Scale with difficulty
-
-      const winChance = Math.min(0.9, Math.max(0.1, playerPower / (playerPower + aiPower)));
-      const won = Math.random() < winChance;
-
-      // Update battle history
-      const user = await getUserById(session.userId);  // Fixed: use getUserById
-      await new Promise((resolve, reject) => {
-        db.run(
-          'INSERT INTO battles (player1_id, battle_type, winner_id, battle_data, reward_amount) VALUES (?, ?, ?, ?, ?)',
-          [user.id, 'ai', won ? user.id : null, JSON.stringify({ opponent: opponent.name, playerPower, aiPower }), won ? opponent.reward : 0],
-          function(err) {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
-
-      // Update rewards
-      if (won) {
-        await updateUserStats(user.id, { 
-          cowoncy: user.cowoncy + opponent.reward,
-          experience: user.experience + (opponent.reward / 10)
-        });
-      }
-
-      socket.emit('battle result', {
-        success: true,
-        won,
-        opponent: opponent.name,
-        reward: won ? opponent.reward : 0,
-        playerPower,
-        aiPower
-      });
-
-      // Broadcast to room
-      socket.to('pocketanimals').emit('game message', {
-        type: 'battle',
-        username: session.username,
-        won,
-        opponent: opponent.name
-      });
-
+      await handleAIBattle(socket, session, data.opponentIndex);
     } catch (error) {
       socket.emit('game error', error.message);
     }
@@ -1343,7 +1418,11 @@ io.on('connection', async (socket) => {
 🎮 **PocketAnimals Commands:**
 /hunt - Hunt for animals (costs 5💰, 15s cooldown)
 /zoo - View your animal collection
-/team - View your battle team  
+/team - View your battle team
+/team add <animalId> <slot> - Assign an animal to a team slot
+/animals - View detailed animal list
+/equip <animalId> <item> - Equip item to animal
+/unequip <animalId> - Unequip item from animal
 /stats - View your player stats
 /leaderboard - View top players
 /sell [animal] [amount] - Sell animals
@@ -1374,7 +1453,7 @@ Active Sessions: ${activeGameSessions.size}
 
             // Broadcast hunt to room
             const animalNames = huntResult.animals.map(a => a.emoji).join(' ');
-            socket.to(room).emit('chat message', {
+            io.to(room).emit('chat message', {
               id: generateMessageId(),
               author: 'PocketAnimals',
               text: `🎯 ${user.username} caught: ${animalNames}`,
@@ -1406,6 +1485,23 @@ Active Sessions: ${activeGameSessions.size}
             return;
 
           case '/team':
+            if (args[0] === 'add') {
+              const animalId = parseInt(args[1], 10);
+              const slot = parseInt(args[2], 10) - 1;
+              if (isNaN(animalId) || isNaN(slot)) {
+                socket.emit('game message', { type: 'system', message: 'Usage: /team add <animalId> <slot 1-3>' });
+                return;
+              }
+              try {
+                await setTeamSlot(session.userId, animalId, slot);
+                const team = await getUserTeam(session.userId);
+                socket.emit('team updated', { team });
+              } catch (err) {
+                socket.emit('game error', err.message);
+              }
+              return;
+            }
+
             const teamAnimals = await getUserTeam(session.userId);
 
             let teamText = '⚔️ **Your Team:**\n';
@@ -1413,11 +1509,55 @@ Active Sessions: ${activeGameSessions.size}
               teamText += 'No team members set.';
             } else {
               teamAnimals.forEach((a, idx) => {
-                teamText += `${idx + 1}. ${a.emoji} ${a.name} Lv.${a.level}\n`;
+                const itemInfo = a.held_item ? ` holding ${a.held_item}` : '';
+                teamText += `${idx + 1}. ${a.emoji} ${a.name} Lv.${a.level}${itemInfo}\n`;
               });
             }
 
             socket.emit('game message', { type: 'system', message: teamText });
+            return;
+
+          case '/animals':
+            const list = await getUserAnimals(session.userId);
+            let listText = '🐾 **Your Animals:**\n';
+            if (list.length === 0) {
+              listText += 'None';
+            } else {
+              list.forEach(a => {
+                const itemInfo = a.held_item ? ` holding ${a.held_item}` : '';
+                listText += `ID:${a.id} ${a.emoji} ${a.name} Lv.${a.level}${itemInfo}\n`;
+              });
+            }
+            socket.emit('game message', { type: 'system', message: listText });
+            return;
+
+          case '/equip':
+            if (args.length < 2) {
+              socket.emit('game message', { type: 'system', message: 'Usage: /equip <animalId> <item name>' });
+              return;
+            }
+            try {
+              const animalId = parseInt(args[0], 10);
+              const itemName = args.slice(1).join(' ');
+              await equipItem(session.userId, animalId, itemName);
+              socket.emit('game message', { type: 'system', message: 'Item equipped!' });
+            } catch (err) {
+              socket.emit('game error', err.message);
+            }
+            return;
+
+          case '/unequip':
+            if (args.length < 1) {
+              socket.emit('game message', { type: 'system', message: 'Usage: /unequip <animalId>' });
+              return;
+            }
+            try {
+              const animalId = parseInt(args[0], 10);
+              await unequipItem(session.userId, animalId);
+              socket.emit('game message', { type: 'system', message: 'Item removed.' });
+            } catch (err) {
+              socket.emit('game error', err.message);
+            }
             return;
 
           case '/stats':
@@ -1491,7 +1631,11 @@ Active Sessions: ${activeGameSessions.size}
               return;
             }
 
-            socket.emit('game battle ai', { opponentIndex });
+            try {
+              await handleAIBattle(socket, session, opponentIndex);
+            } catch (err) {
+              socket.emit('game error', err.message);
+            }
             return;
 
           case '/heal':
@@ -1930,5 +2074,9 @@ module.exports = {
   addAnimalToUser,
   getUserById,
   getUserAnimals,
-  performSell
+  performSell,
+  setTeamSlot,
+  equipItem,
+  unequipItem,
+  handleAIBattle
 };
